@@ -142,7 +142,7 @@ app.get("/all-announcements", async (req, res) => {
     const allAnnouncement = await announcementModel.findAll({
       where: { isActive: true },
     });
-    res.status(200).json({ status: "succeess", data: allAnnouncement });
+    res.status(200).json({ status: "success", data: allAnnouncement });
   } catch (error) {
     res.status(500).json({ status: "error", data: error });
   }
@@ -177,7 +177,7 @@ app.post("/new-categories", async (req, res) => {
   app.get("/all-categories", async (req, res) => {
     try {
       const allCategories = await categoryModel.findAll();
-      res.status(200).json({ status: "succeess", data: allCategories });
+      res.status(200).json({ status: "success", data: allCategories });
     } catch (error) {
       res.status(500).json({ status: "error", data: error });
     }
