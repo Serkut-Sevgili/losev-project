@@ -2,9 +2,15 @@ const { Sequelize, DataTypes } = require('sequelize');
 require('dotenv').config();
 
 // Veritabanı bağlantısını oluştur
-const sequelize = new Sequelize('losev', 'root', process.env.DATABASE_PASSWORD, {
-    host: 'localhost',
-    dialect: 'mysql'
+const sequelize = new Sequelize(
+    process.env.DB_NAME, //VERİ TABANI ADI
+    process.env.DB_USER, // KULLANICI ADI
+    process.env.DB_PASSWORD, // ŞİFRE
+ {
+    host: process.env.DB_HOST, //SUNUCU ADRESİ
+    port : process.env.DB_PORT || 3306,  //PORT NUMARASI 
+    dialect: 'mysql',
+    logging: false,
 });
 
 // Modelleri tanımla
