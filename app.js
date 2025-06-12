@@ -1,468 +1,427 @@
-const express = require("express");
-const { sequelize } = require("./database"); // Sequelize bağlantısını içe aktar
-const {
-  userModel,
-  announcementModel,
-  categoryModel,
-  productModel,
-  favoriteModel,
-  basketModel,
-} = require("./database");
+const express = require('express');
+const { sequelize } = require('./database'); // Sequelize bağlantısını içe aktar
+const { userModel, announcementModel, categoryModel, 
+    productModel, favoriteModel, basketModel } = require("./database");
 
 const app = express();
 app.use(express.json());
-const bcrypt = require("bcrypt");
+const bcrypt = require('bcrypt');
 const { body, validationResult } = require("express-validator");
-const { where } = require("sequelize");
-require("dotenv").config();
+require('dotenv').config();
 
 const port = process.env.PORT;
 
-sequelize
-  .sync({ force: false }) // force: true yaparsan tabloyu sıfırlar!
-  .then(() => console.log("Veritabanı senkronize edildi."))
-  .catch((err) => console.log("Senkronizasyon hatası:", err));
+sequelize.sync({ force: false }) // force: true yaparsan tabloyu sıfırlar!
+    .then(() => console.log("Veritabanı senkronize edildi."))
+    .catch(err => console.log("Senkronizasyon hatası:", err));
 
-app.post("/sign-in", async (req, res) => {
-  const { phone, password } = req.body;
+app.post("/sign-in", async (req,res)=>{
+    const { phone, password } = req.body;
 
-  const kullanici = await userModel.findOne({ where: { phone } });
+    const kullanici = await userModel.findOne({ where: { phone }});
 
-  if (kullanici == null) {
-    res.status(500).json({ status: "error", data: "Telefon yanlış" });
-  } else {
-    console.log("ŞIFRELER", password, kullanici.password);
-    const ayniSifre = await bcrypt.compareSync(password, kullanici.password);
-    console.log("aynı mı?", ayniSifre);
-
-    if (!ayniSifre) {
-      res.status(500).json({ status: "error", data: "Şifre yanlış" });
+    if(kullanici == null) {
+        res.status(500).json({ status: "error", data: "Telefon yanlış"})
+        
     } else {
-      res.status(200).json({ status: "success", data: kullanici });
+        console.log("ŞIFRELER", password, kullanici.password)
+        const ayniSifre = await bcrypt.compareSync(password, kullanici.password)
+        console.log("aynı mı?", ayniSifre)
+
+        if(!ayniSifre) {
+            res.status(500).json({ status: "error", data: "Şifre yanlış"})
+        } else {
+            res.status(200).json({ status: "success", data: kullanici })
+        }
     }
-  }
 });
 
 app.get("/all-users", async (req, res) => {
-  try {
+    try {
     const allUsers = await userModel.findAll();
 
     res.status(200).json({ status: "success", data: allUsers });
-  } catch (error) {
-    res.status(500).json({ status: "error", data: error });
-  }
+    } catch (error) {
+        res.status(500).json({ status: "error", data: error })
+    }
 });
 app.get("/user/:id", async (req, res) => {
-  const { id } = req.params;
+    const { id } = req.params;
 
-  try {
-    const newUser = await userModel.findOne({ where: { id: id } });
-
-    res.status(200).json({ status: "success", data: newUser });
-  } catch (error) {
-    console.log("ERROR", error);
-    res.status(500).json({ status: "error", data: error });
-  }
-});
-app.post(
-  "/sign-up",
-  [
-    body("email").isEmail().withMessage("Geçersiz e-posta!"),
-    body("phone")
-      .isMobilePhone("tr-TR")
-      .withMessage("Geçersiz telefon numarası!"),
-    body("password")
-      .isLength({ min: 8 })
-      .withMessage("Şifre en az 8 karakter olmalı!")
-      .matches(/[A-Z]/)
-      .withMessage("Şifrede en az bir büyük harf olmalı!")
-      .matches(/[a-z]/)
-      .withMessage("Şifrede en az bir küçük harf olmalı!")
-      .matches(/\d/)
-      .withMessage("Şifrede en az bir sayı olmalı!"),
-  ],
-  async (req, res, next) => {
-    const errors = validationResult(req);
-
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    } else {
-      try {
-        const { id, firstName, lastName, email, phone, password } = req.body;
-
-        const userExists = await userModel.findOne({ where: { phone: phone } });
-        if (userExists) {
-          res.status(500).json({ status: "error", data: "Kullanıcı mevcut" });
-        } else {
-          const sansurluSifre = await bcrypt.hash(password, 10);
-          const newUser = userModel.create({
-            id,
-            isim: firstName,
-            soyisim: lastName,
-            email,
-            phone,
-            password: sansurluSifre,
-            birthDate: "1999-07-06",
-            gender: "female",
-          });
-          if (!newUser){
-            res.status(500).json({ status: "error", data: "Kullanıcı oluşturalamadı."})
-          }
-
-          res
-            .status(200)
-            .json({ status: "success", data: "Kullanıcı eklendi" });
-        }
-      } catch (error) {
-        res.status(500).json({ status: "error", data: error });
-      }
-    }
-  }
-);
-
-app.post("/new-announcement", async (req, res) => {
-  const { photoLink, title, description } = req.body;
-  try {
-    const newAnnouncement = await announcementModel.create({
-      photoLink: photoLink,
-      title: title,
-      description: description,
-      isActive: true,
-    });
-    if (!newAnnouncement) {
-      res.status(500).json({ status: "error", data: "Yeni duyuru oluşturılamadı"})
-    }
-    res.status(200).json({ status: "success", data: newAnnouncement });
-  } catch (error) {
-    res.status(500).json({ status: "error", data: error });
-  }
-});
-app.get("/all-announcements", async (req, res) => {
-  try {
-    const allAnnouncement = await announcementModel.findAll({
-      where: { isActive: true },
-    });
-    res.status(200).json({ status: "success", data: allAnnouncement });
-  } catch (error) {
-    res.status(500).json({ status: "error", data: error });
-  }
-});
-app.get("/announcement/:id", async (req, res) => {
-  const { id } = req.params;
-  try {
-    const selectedAnnouncement = await announcementModel.findOne({
-      where: { id: id },
-    });
-    res.status(200).json({ status: "success", data: selectedAnnouncement });
-  } catch (error) {
-    console.log("ERROR!!!", error);
-    res.status(500).json({ status: "error", data: error });
-  }
-});
-app.post("/new-categories", async (req, res) => {
-  const { photoLink, title } = req.body;
-  try {
-    const newCategory = categoryModel.create({
-      photoLink: photoLink,
-      title: title,
-    });
-    if (!newCategory) {
-      res.status(500).json({ status: "error", data: "Yeni kategori olulturualadmı."})
-    }
-    res.status(200).json({ status: "success", data: newCategory });
-  } catch (error) {
-    res.status(500).json({ status: "error", data: error });
-  }
-}),
-  app.get("/all-categories", async (req, res) => {
     try {
-      const allCategories = await categoryModel.findAll();
-      res.status(200).json({ status: "success", data: allCategories });
+    const newUser = await userModel.findOne({ where: { id: id }});
+
+    res.status(200).json({ status: "success", data: newUser })
     } catch (error) {
-      res.status(500).json({ status: "error", data: error });
+        console.log("ERROR", error)
+        res.status(500).json({ status: "error", data: error })
     }
-  });
-app.get("/category/:id", async (req, res) => {
-  const { id } = req.params;
-  try {
-    const category = await categoryModel.findOne({ where: { id: id } });
-    res.status(200).json({ status: "success", data: category });
-  } catch (error) {
-    console.log("ERROR!!!", error);
-    res.status(500).json({ status: "error", data: error });
-  }
+
 });
-app.post("/new-product", async (req, res) => {
-  const { id, name, photoLink, price, categoryId } = req.body;
+app.post("/sign-up",
+    [
+        body("email").isEmail().withMessage("Geçersiz e-posta!"),
+        body("phone").isMobilePhone("tr-TR").withMessage("Geçersiz telefon numarası!"),
+        body("password").isLength({ min: 8 }).withMessage("Şifre en az 8 karakter olmalı!")
+        .matches(/[A-Z]/).withMessage("Şifrede en az bir büyük harf olmalı!")
+        .matches(/[a-z]/).withMessage("Şifrede en az bir küçük harf olmalı!")
+        .matches(/\d/).withMessage("Şifrede en az bir sayı olmalı!")
+    ],
+     async (req, res, next) => {
+        const errors = validationResult(req);
 
-  try {
-    const newProduct = await productModel.create({
-      id: id,
-      name: name,
-      photoLink: photoLink,
-      price: price,
-      categoryId: categoryId,
+        if(!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        } else {
+            try {
+                const { id, firstName, lastName, email, phone, password } = req.body;
+            
+
+                const userExists = await userModel.findOne({ where: { phone: phone } })
+                if(userExists) {
+                    res.status(500).json({ status: "error", data: "Kullanıcı mevcut"})
+                } else {
+
+                const sansurluSifre = await bcrypt.hash(password, 10);
+                const newUser = userModel.create({ id, isim: firstName, soyisim: lastName, email, phone, password: sansurluSifre });
+
+                if(!newUser) {
+                    res.status(500).json({ status: "error", data: "Kullanıcı oluşturulamadı."});
+                }
+
+                res.status(200).json({ status: "success", data: "Kullanıcı eklendi" })
+                }
+            } catch (error) {
+                res.status(500).json({ status: "error", data: error })
+            }
+        }
     });
-    if (!newProduct) {
-      res.status(500).json({ status: "error", data: "Yeni ürün oluşturalamadı."})
+
+    app.post("/new-announcement", async (req,res) => {
+        const{ photoLink, title, description} =req.body;
+    try {
+        const newAnnouncement = await announcementModel.create({photoLink: photoLink, title: title,description : description , isActive: true});
+
+        if(!newAnnouncement) {
+            res.status(500).json({ status: "error", data: "Duyuru oluşturulamadı."});
+        }
+
+        res.status(200).json({status:"success",data: newAnnouncement})
+            } catch(error){
+                res.status(500).json({status:"error",data: error})
+            }
+    });
+
+app.get("/all-announcements",async(req,res)=>{
+    try{
+    const allAnnouncement = await announcementModel.findAll({where:{isActive:true}});
+    res.status(200).json({status:"success", data: allAnnouncement });
+    }catch(error){
+        res.status(500).json({status:"error",data: error})
+    }
+});
+app.get("/announcement/:id", async (req,res)=>{
+    const { id }= req.params;
+    try{
+const selectedAnnouncement = await announcementModel.findOne({where:{id:id}});
+res.status(200).json({status:"success",data:selectedAnnouncement});
+    }catch(error){
+        console.log("ERROR!!!", error)
+        res.status(500).json({status:"error", data:error})
+        
+    }
+});
+app.post("/new-categories",async(req,res)=>{
+    const { photoLink, title } = req.body;
+    try{
+        const newCategory =  categoryModel.create({ photoLink:photoLink, title:title });
+
+        if(!newCategory) {
+            res.status(500).json({ status: "error", data: "Kategori oluşturulamadı."});
+        }
+
+        res.status(200).json({status:"success",data: newCategory})
+    } catch(error){
+        res.status(500).json({status:"error",data: error})
+    }
+}),
+app.get("/all-categories",async(req,res)=>{
+    try{
+        const allCategories = await categoryModel.findAll();
+    res.status(200).json({status:"success", data: allCategories });
+    }catch(error){
+        res.status(500).json({status:"error",data: error})
     }
 
-    res.status(200).json({ status: "success", data: newProduct });
-  } catch (err) {
-    console.log();
-    res.status(500).json({ status: "error", data: err });
-  }
+});
+app.get("/category/:id", async (req,res)=>{
+    const { id }= req.params;
+    try{
+        const category = await categoryModel.findOne({ where: { id:id } });
+        res.status(200).json({status:"success",data:category});
+    }catch(error){
+        console.log("ERROR!!!", error)
+        res.status(500).json({status:"error", data:error})
+    }
+});
+app.post("/new-product", async(req, res) => {
+    const { id, name, photoLink, price, categoryId } = req.body;
+
+    try {
+        const newProduct = await productModel.create({ id: id, name: name, photoLink: photoLink,
+             price: price, categoryId: categoryId });
+
+        if(!newProduct) {
+            res.status(500).json({ status: "error", data: "Ürün oluşturulamadı." });
+        }
+
+        res.status(200).json({ status: "success", data: newProduct });
+    } catch(err) {
+        res.status(500).json({ status: "error", data: err })
+    }
 });
 
 app.get("/all-products", async (req, res) => {
-  try {
-    const allProducts = await productModel.findAll({
-      include: {
-        model: categoryModel,
-        as: "category",
-      },
-    });
+    try {
+        const allProducts = await productModel.findAll({
+            include: {
+                model: categoryModel,
+                as: "category"
+            }
+        });
 
-    res.status(200).json({
-      status: "success",
-      data: allProducts,
-    });
-  } catch (error) {
-    console.error("PRODUCT FETCH ERROR:", error);
-    res.status(500).json({
-      status: "error",
-      data: error,
-    });
-  }
+        res.status(200).json({
+            status: "success",
+            data: allProducts
+        });
+
+    } catch (error) {
+        console.error("PRODUCT FETCH ERROR:", error);
+        res.status(500).json({
+            status: "error",
+            data: error
+        });
+    }
 });
 
 app.get("/products/:categoryId", async (req, res) => {
-  const { categoryId } = req.params;
+    const { categoryId } = req.params;
 
-  try {
-    const products = await productModel.findAll({
-      where: { categoryId: categoryId },
-      include: {
-        model: categoryModel,
-        as: "category",
-      },
-    });
+    try {
+        const products = await productModel.findAll({
+            where: { categoryId: categoryId },
+            include: {
+                model: categoryModel,
+                as: "category"
+            }
+        });
 
-    res.status(200).json({
-      status: "success",
-      data: products,
-    });
-  } catch (error) {
-    console.error("CATEGORY PRODUCTS ERROR:", error);
-    res.status(500).json({
-      status: "error",
-      data: error,
-    });
-  }
+        res.status(200).json({
+            status: "success",
+            data: products
+        });
+
+    } catch (error) {
+        console.error("CATEGORY PRODUCTS ERROR:", error);
+        res.status(500).json({
+            status: "error",
+            data: error
+        });
+    }
 });
 
 app.get("/product/:id", async (req, res) => {
-  const { id } = req.params;
+    const { id } = req.params;
 
-  try {
-    const product = await productModel.findOne({
-      where: { id: id },
-      include: {
-        model: categoryModel,
-        as: "category",
-      },
-    });
+    try {
+        const product = await productModel.findOne({
+            where: { id: id },
+            include: {
+                model: categoryModel,
+                as: "category"
+            }
+        });
 
-    if (!product) {
-      return res.status(404).json({
-        status: "error",
-        data: "Ürün bulunamadı",
-      });
+        if (!product) {
+            return res.status(404).json({
+                status: "error",
+                data: "Ürün bulunamadı"
+            });
+        }
+
+        res.status(200).json({
+            status: "success",
+            data: product
+        });
+
+    } catch (error) {
+        console.error("PRODUCT FETCH ERROR:", error);
+        res.status(500).json({
+            status: "error",
+            data: error
+        });
     }
-
-    res.status(200).json({
-      status: "success",
-      data: product,
-    });
-  } catch (error) {
-    console.error("PRODUCT FETCH ERROR:", error);
-    res.status(500).json({
-      status: "error",
-      data: error,
-    });
-  }
 });
 
 app.post("/new-fav", async (req, res, next) => {
-  const { userId, productId } = req.body;
+    const { userId, productId } = req.body;
 
-  try {
-    const newFav = await favoriteModel.create({
-      userId: userId,
-      productId: productId,
-    });
-    if(!newFav){
-      res.status(500).json ({status:"error", data: "Favori Eklenmedi." })
+    try {
+        const newFav = await favoriteModel.create({ userId: userId, 
+            productId: productId });
+
+        if(!newFav) {
+            res.status(500).json({ status: "error", data: "Favori eklenemedi." });
+        }
+
+        res.status(200).json({ status: "success", 
+            data: "Favori başarıyla eklendi."});
+    } catch(error) {
+        res.status(500).json({ status: "error", data: "Favori eklenemedi."});
     }
-
-    res
-      .status(200)
-      .json({ status: "success", data: "Favori başarıyla eklendi." });
-  } catch (error) {
-    res.status(500).json({ status: "error", data: "Favori eklenemedi." });
-  }
 });
 
 app.get("/favs/:userId", async (req, res, next) => {
-  const { userId } = req.params;
+    const { userId } = req.params;
 
-  try {
-    const favs = await favoriteModel.findAll({
-      include: [
-        {
-          model: productModel,
-        },
-      ],
-      where: { userId: userId },
-    });
+    try {
+        const favs = await favoriteModel.findAll({
+            include: [
+                {
+                    model: productModel,
+                }
+            ],
+            where: { userId: userId }
+        });
 
-    res.status(200).json({ status: "success", data: favs });
-  } catch (error) {
-    console.log("ERROR!!", error);
-    res.status(500).json({ status: "error", data: "Favori bulunamadı." });
-  }
+        res.status(200).json({ status: "success", data: favs });
+    } catch (error) {
+        console.log("ERROR!!", error);
+        res.status(500).json({ status: "error", data: "Favori bulunamadı." });
+    }
 });
 
 app.post("/basket", async (req, res, next) => {
-  const { quantity, productId, userId } = req.body;
+    const { quantity, productId, userId } = req.body;
 
-  try {
-    const isProdExists = await basketModel.findOne({
-      where: {
-        userId: userId,
-        productId: productId,
-      },
-    });
+    try {
+        const isProdExists = await basketModel.findOne({ where: {
+            userId: userId,
+            productId: productId
+        }});
 
+        if(isProdExists) {
+            const [updatedBasket] = await basketModel.update({
+                quantity: quantity,
+            }, { where: { userId: userId, productId: productId }});
 
-    if (isProdExists) {
-      const [updatedBasket] = await basketModel.update(
-        {
-          quantity: quantity,
-        },
-        { where: { userId: userId, productId: productId } }
-      );
-      if(updatedBasket === 0){
-          res.status(500).json({staus:"error", data: "Ürün Sepete Eklenemedi."})        
-      }
-    } else {
-      const newProduct =await basketModel.create({
-        userId: userId,
-        productId: productId,
-        quantity: quantity,      
-      });
-         if( !newProduct){
-          res.status(500).json({ status: "error", data: "Ürün sepete eklenemedi."})
+            if(updatedBasket === 0) {
+                res.status(500).json({ status: "error", data: "Ürün sepete eklenemedi."});
+            }
+        } else {
+            const newProduct = await basketModel.create({ userId: userId, 
+                productId: productId, 
+                quantity: quantity });
+
+            if(!newProduct) {
+                res.status(500).json({ status: "error", data: "Ürün sepete eklenemedi."});
+            }
         }
-      
+
+        const basket = await basketModel.findAll({
+            include: [
+                {
+                    model: productModel,
+                    as: "product"
+                }
+            ],
+            where: { userId: userId }
+        });
+
+        let basketTotal = 0;
+
+        for(const b of basket) {
+            const prodTotal = b.product.price * b.quantity;
+
+            basketTotal += prodTotal;
+        }
+
+        res.status(200).json({ status: "success", data: { basket, basketTotal } });
+    } catch (error) {
+        console.log("error!!!", error);
+        res.status(500).json({ status: "error", data: "Sepet getirilemedi."})
     }
-
-    const basket = await basketModel.findAll({
-      include: [
-        {
-          model: productModel,
-          as: "product",
-        },
-      ],
-      where: { userId: userId },
-    });
-
-    let basketTotal = 0;
-
-    for (const b of basket) {
-      const prodTotal = b.product.price * b.quantity;
-
-      basketTotal += prodTotal;
-    }
-
-    res.status(200).json({ status: "success", data: { basket, basketTotal } });
-  } catch (error) {
-    console.log("error!!!", error);
-    res.status(500).json({ status: "error", data: "Sepet getirilemedi." });
-  }
 });
 
-app.delete("/basket/:userId",async(req, res , next)=>{
-    const{userId}= req.params;
+app.delete("/basket/:userId", async(req, res, next) => {
+    const { userId } = req.params;
+
     try {
-       const deletedBasket = await basketModel.destroy({
-          where: { userId },
-        });
-        if (deletedProduct === 0) {
-          res.status(500).json({ status: "error", data: "Sepet Silinemedi."})
+        const deletedBasket = await basketModel.destroy({ where: { userId: userId }});
+
+        if(deletedBasket === 0) {
+            res.status(500).json({ status: "error", data: "Sepet boşaltılamadı."});
         }
-    
+
         const basket = await basketModel.findAll({
-          include: [
-            {
-              model: productModel,
-              as: "product",
-            },
-          ],
-          where: { userId: userId },
+            include: [
+                {
+                    model: productModel,
+                    as: "product"
+                }
+            ],
+            where: { userId: userId }
         });
-    
+
         let basketTotal = 0;
-    
-        for (const b of basket) {
-          const prodTotal = b.product.price * b.quantity;
-    
-          basketTotal += prodTotal;
+
+        for(const b of basket) {
+            const prodTotal = b.product.price * b.quantity;
+
+            basketTotal += prodTotal;
         }
+
         res.status(200).json({ status: "success", data: { basket, basketTotal } });
-      } catch (error) {
-        console.log("error!!!", error);
-        res.status(500).json({ status: "error", data: "Sepet Silinemedi." });
-      }
+    } catch(error) {
+        res.status(500).json({ status: "error", data: "Sepet silinemedi."})
+    }
 })
 
-
 app.delete("/basket/:userId/:productId", async (req, res, next) => {
-  const { productId, userId } = req.params;
-  try {
-    const deletedProduct =await basketModel.destroy({
-      where: { userId: userId, productId: productId },
-    });
-    if (deletedProduct === 0) {
-      res.status(500).json({ status: "error", data: "Ürün silinemedi."})
+    const { userId, productId } = req.params;
+
+    try {
+        const deletedProduct = await basketModel.destroy({ where: { userId: userId, productId: productId }});
+
+        if(deletedProduct === 0) {
+            res.status(500).json({ status: "error", data: "Ürün sepetten çıkarılamadı." })
+        }
+
+        const basket = await basketModel.findAll({
+            include: [
+                {
+                    model: productModel,
+                    as: "product"
+                }
+            ],
+            where: { userId: userId }
+        });
+
+        let basketTotal = 0;
+
+        for(const b of basket) {
+            const prodTotal = b.product.price * b.quantity;
+
+            basketTotal += prodTotal;
+        }
+
+        res.status(200).json({ status: "success", data: { basket, basketTotal } });
+    } catch(error) {
+        console.log("ERROR!!!", error);
+        res.status(500).json({ status: "error", data: "Ürün silinemedi."})
     }
-
-    const basket = await basketModel.findAll({
-      include: [
-        {
-          model: productModel,
-          as: "product",
-        },
-      ],
-      where: { userId: userId },
-    });
-
-    let basketTotal = 0;
-
-    for (const b of basket) {
-      const prodTotal = b.product.price * b.quantity;
-
-      basketTotal += prodTotal;
-    }
-    res.status(200).json({ status: "success", data: { basket, basketTotal } });
-  } catch (error) {
-    console.log("error!!!", error);
-    res.status(500).json({ status: "error", data: "Ürün Silinemedi." });
-  }
 });
 
-
-
 app.listen(port, () => {
-  console.log("Sunucu http://localhost:${port} adresinde çalışıyor");
+    console.log("Sunucu http://localhost:${port} adresinde çalışıyor");
 });

@@ -1,0 +1,7 @@
+git add sonrası *  olursa tüm değişen dosyalar
+modellerin hepsini tekte eklemek için  git add models/
+değşiklik yaptığımız modeller için git add models/app.js
+
+
+git commit -m model tanımları eklendi bilgi veriyorum.
+git push   hesaptaki repo denilen yere kodu gönderiyor 
